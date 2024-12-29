@@ -19,16 +19,289 @@
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 ###################
 
-import struct
+from ctypes import c_long, c_ulong, windll, sizeof, Structure, POINTER, pointer, Union, byref, WinError, get_last_error
+from sys import stderr, exit, executable, argv
+from ctypes.wintypes import DWORD, WORD, POINT
+from struct import unpack
+from time import sleep
+from enum import Enum
+
+INPUT_MOUSE = 0
+INPUT_KEYBOARD = 1
+INPUT_HARDWARE = 2
+
+class VirtualKey(Enum):
+    # Mouse buttons
+    VK_LBUTTON = 0x01
+    VK_RBUTTON = 0x02
+    VK_MBUTTON = 0x04
+    VK_XBUTTON1 = 0x05
+    VK_XBUTTON2 = 0x06
+
+    # Keyboard keys
+    VK_CANCEL = 0x03
+    VK_BACK = 0x08
+    VK_TAB = 0x09
+    VK_CLEAR = 0x0C
+    VK_RETURN = 0x0D
+    VK_SHIFT = 0x10
+    VK_CONTROL = 0x11
+    VK_MENU = 0x12
+    VK_PAUSE = 0x13
+    VK_CAPITAL = 0x14
+    VK_KANA = 0x15
+    VK_HANGUL = 0x15
+    VK_IME_ON = 0x16
+    VK_JUNJA = 0x17
+    VK_FINAL = 0x18
+    VK_HANJA = 0x19
+    VK_KANJI = 0x19
+    VK_IME_OFF = 0x1A
+    VK_ESCAPE = 0x1B
+    VK_CONVERT = 0x1C
+    VK_NONCONVERT = 0x1D
+    VK_ACCEPT = 0x1E
+    VK_MODECHANGE = 0x1F
+    VK_SPACE = 0x20
+    VK_PRIOR = 0x21
+    VK_NEXT = 0x22
+    VK_END = 0x23
+    VK_HOME = 0x24
+    VK_LEFT = 0x25
+    VK_UP = 0x26
+    VK_RIGHT = 0x27
+    VK_DOWN = 0x28
+    VK_SELECT = 0x29
+    VK_PRINT = 0x2A
+    VK_EXECUTE = 0x2B
+    VK_SNAPSHOT = 0x2C
+    VK_INSERT = 0x2D
+    VK_DELETE = 0x2E
+    VK_HELP = 0x2F
+
+    # Number keys
+    VK_0 = 0x30
+    VK_1 = 0x31
+    VK_2 = 0x32
+    VK_3 = 0x33
+    VK_4 = 0x34
+    VK_5 = 0x35
+    VK_6 = 0x36
+    VK_7 = 0x37
+    VK_8 = 0x38
+    VK_9 = 0x39
+
+    # Alphabet keys
+    VK_A = 0x41
+    VK_B = 0x42
+    VK_C = 0x43
+    VK_D = 0x44
+    VK_E = 0x45
+    VK_F = 0x46
+    VK_G = 0x47
+    VK_H = 0x48
+    VK_I = 0x49
+    VK_J = 0x4A
+    VK_K = 0x4B
+    VK_L = 0x4C
+    VK_M = 0x4D
+    VK_N = 0x4E
+    VK_O = 0x4F
+    VK_P = 0x50
+    VK_Q = 0x51
+    VK_R = 0x52
+    VK_S = 0x53
+    VK_T = 0x54
+    VK_U = 0x55
+    VK_V = 0x56
+    VK_W = 0x57
+    VK_X = 0x58
+    VK_Y = 0x59
+    VK_Z = 0x5A
+
+    # Windows keys
+    VK_LWIN = 0x5B
+    VK_RWIN = 0x5C
+    VK_APPS = 0x5D
+
+    # Sleep key
+    VK_SLEEP = 0x5F
+
+    # Numpad keys
+    VK_NUMPAD0 = 0x60
+    VK_NUMPAD1 = 0x61
+    VK_NUMPAD2 = 0x62
+    VK_NUMPAD3 = 0x63
+    VK_NUMPAD4 = 0x64
+    VK_NUMPAD5 = 0x65
+    VK_NUMPAD6 = 0x66
+    VK_NUMPAD7 = 0x67
+    VK_NUMPAD8 = 0x68
+    VK_NUMPAD9 = 0x69
+    VK_MULTIPLY = 0x6A
+    VK_ADD = 0x6B
+    VK_SEPARATOR = 0x6C
+    VK_SUBTRACT = 0x6D
+    VK_DECIMAL = 0x6E
+    VK_DIVIDE = 0x6F
+
+    # Function keys
+    VK_F1 = 0x70
+    VK_F2 = 0x71
+    VK_F3 = 0x72
+    VK_F4 = 0x73
+    VK_F5 = 0x74
+    VK_F6 = 0x75
+    VK_F7 = 0x76
+    VK_F8 = 0x77
+    VK_F9 = 0x78
+    VK_F10 = 0x79
+    VK_F11 = 0x7A
+    VK_F12 = 0x7B
+    VK_F13 = 0x7C
+    VK_F14 = 0x7D
+    VK_F15 = 0x7E
+    VK_F16 = 0x7F
+    VK_F17 = 0x80
+    VK_F18 = 0x81
+    VK_F19 = 0x82
+    VK_F20 = 0x83
+    VK_F21 = 0x84
+    VK_F22 = 0x85
+    VK_F23 = 0x86
+    VK_F24 = 0x87
+
+    # Lock keys
+    VK_NUMLOCK = 0x90
+    VK_SCROLL = 0x91
+
+    # Modifier keys
+    VK_LSHIFT = 0xA0
+    VK_RSHIFT = 0xA1
+    VK_LCONTROL = 0xA2
+    VK_RCONTROL = 0xA3
+    VK_LMENU = 0xA4
+    VK_RMENU = 0xA5
+
+    # Browser keys
+    VK_BROWSER_BACK = 0xA6
+    VK_BROWSER_FORWARD = 0xA7
+    VK_BROWSER_REFRESH = 0xA8
+    VK_BROWSER_STOP = 0xA9
+    VK_BROWSER_SEARCH = 0xAA
+    VK_BROWSER_FAVORITES = 0xAB
+    VK_BROWSER_HOME = 0xAC
+
+    # Media keys
+    VK_VOLUME_MUTE = 0xAD
+    VK_VOLUME_DOWN = 0xAE
+    VK_VOLUME_UP = 0xAF
+    VK_MEDIA_NEXT_TRACK = 0xB0
+    VK_MEDIA_PREV_TRACK = 0xB1
+    VK_MEDIA_STOP = 0xB2
+    VK_MEDIA_PLAY_PAUSE = 0xB3
+
+    # Launch keys
+    VK_LAUNCH_MAIL = 0xB4
+    VK_LAUNCH_MEDIA_SELECT = 0xB5
+    VK_LAUNCH_APP1 = 0xB6
+    VK_LAUNCH_APP2 = 0xB7
+
+    # OEM keys
+    VK_OEM_1 = 0xBA
+    VK_OEM_PLUS = 0xBB
+    VK_OEM_COMMA = 0xBC
+    VK_OEM_MINUS = 0xBD
+    VK_OEM_PERIOD = 0xBE
+    VK_OEM_2 = 0xBF
+    VK_OEM_3 = 0xC0
+    VK_OEM_4 = 0xDB
+    VK_OEM_5 = 0xDC
+    VK_OEM_6 = 0xDD
+    VK_OEM_7 = 0xDE
+    VK_OEM_8 = 0xDF
+    VK_OEM_102 = 0xE2
+
+    # IME keys
+    VK_PROCESSKEY = 0xE5
+    VK_PACKET = 0xE7
+
+    # Miscellaneous keys
+    VK_ATTN = 0xF6
+    VK_CRSEL = 0xF7
+    VK_EXSEL = 0xF8
+    VK_EREOF = 0xF9
+    VK_PLAY = 0xFA
+    VK_ZOOM = 0xFB
+    VK_NONAME = 0xFC
+    VK_PA1 = 0xFD
+    VK_OEM_CLEAR = 0xFE
+
+virtual_key_dict = {vk.value: vk.name for vk in VirtualKey}
+
+basic_keys = set(range(0x25, 0x28 + 1))
+basic_keys.update(set(range(0x30, 0x39 + 1)))
+basic_keys.update(set(range(0x41, 0x5A + 1)))
+basic_keys.update(set(range(0x60, 0x6F + 1)))
+basic_keys.update(set(range(0xA0, 0xA3 + 1)))
+basic_keys.update(set(range(0xBA, 0xC0 + 1)))
+basic_keys.update(set(range(0xDB, 0xDF + 1)))
+basic_keys.add(0xE2)
+basic_keys.add(0x20)
+basic_keys.add(0x09)
+basic_keys.add(0x0D)
+basic_keys.add(0x10)
+basic_keys.add(0x11)
+basic_keys.add(0x12)
+basic_keys.add(0x14)
+basic_keys.add(0xA4)
+basic_keys.add(0xA5)
+
+class MOUSEINPUT(Structure):
+    _fields_ = [
+        ("dx", c_long),
+        ("dy", c_long),
+        ("mouseData", DWORD),
+        ("dwFlags", DWORD),
+        ("time", DWORD),
+        ("dwExtraInfo", POINTER(c_ulong))
+    ]
+
+class HARDWAREINPUT(Structure):
+    _fields_ = [
+        ("uMsg", DWORD),
+        ("wParamL", WORD),
+        ("wParamH", WORD)
+    ]
+
+class KEYBDINPUT(Structure):
+    _fields_ = [("wVk", WORD),
+                ("wScan", WORD),
+                ("dwFlags", DWORD),
+                ("time", DWORD),
+                ("dwExtraInfo", POINTER(c_ulong))]
+
+class INPUT(Structure):
+    class _INPUT(Union):
+        _fields_ = [
+            ("ki", KEYBDINPUT),
+            ("mi", MOUSEINPUT),
+            ("hi", HARDWAREINPUT)
+        ]
+    
+    _fields_ = [
+        ("type", DWORD),
+        ("input", _INPUT)
+    ]
 
 class KeyEntry:
-    def __init__(self, pressed, state_seconds, virtual_key_code):
+    def __init__(self, pressed, seconds, virtual_key_code):
         self.pressed = pressed
-        self.state_seconds = state_seconds
+        self.seconds = seconds
         self.virtual_key_code = virtual_key_code
 
     def __repr__(self):
-        return f"KeyEntry(pressed={self.pressed}, state_seconds={self.state_seconds}, virtual_key_code={self.virtual_key_code})"
+        return f"KeyEntry(pressed={self.pressed}, seconds={self.seconds}, virtual_key_code={self.virtual_key_code})"
 
 class KeyLog:
     def __init__(self, magic_bytes, timestamp, keyboard_layout_code, number_of_entries, entries):
@@ -45,11 +318,11 @@ class KeyLog:
 
 def read_keylog(file_path):
     with open(file_path, 'rb') as f:
-        magic_bytes, timestamp, keyboard_layout_code, number_of_entries = struct.unpack('4sIII', f.read(16))
+        magic_bytes, timestamp, keyboard_layout_code, number_of_entries = unpack('4sIII', f.read(16))
 
         entries = []
         for _ in range(number_of_entries):
-            state_seconds, virtual_key_code = struct.unpack('IB', f.read(5))
+            state_seconds, virtual_key_code = unpack('IB', f.read(5))
             pressed = not bool(state_seconds & 0x80000000)
             entry = KeyEntry(pressed, state_seconds & 0x7fffffff, virtual_key_code)
             entries.append(entry)
@@ -57,7 +330,96 @@ def read_keylog(file_path):
         keylog = KeyLog(magic_bytes, timestamp, keyboard_layout_code, number_of_entries, entries)
         return keylog
 
-if __name__ == "__main__":
+def send_key_name(name):
+    windll.user32.keybd_event(VirtualKey.VK_CAPITAL.value, 0, 0, 0)
+    windll.user32.keybd_event(VirtualKey.VK_CAPITAL.value, 0, 2, 0)
+    windll.user32.keybd_event(VirtualKey.VK_SHIFT.value, 0, 0, 0)
+    windll.user32.keybd_event(VirtualKey.VK_OEM_COMMA.value, 0, 0, 0)
+    windll.user32.keybd_event(VirtualKey.VK_OEM_COMMA.value, 0, 2, 0)
+    windll.user32.keybd_event(VirtualKey.VK_SHIFT.value, 0, 2, 0)
+    for char in name:
+        windll.user32.keybd_event(ord(char), 0, 0, 0)
+        windll.user32.keybd_event(ord(char), 0, 2, 0)
+    windll.user32.keybd_event(VirtualKey.VK_SHIFT.value, 0, 0, 0)
+    windll.user32.keybd_event(VirtualKey.VK_OEM_PERIOD.value, 0, 0, 0)
+    windll.user32.keybd_event(VirtualKey.VK_OEM_PERIOD.value, 0, 2, 0)
+    windll.user32.keybd_event(VirtualKey.VK_SHIFT.value, 0, 2, 0)
+    windll.user32.keybd_event(VirtualKey.VK_CAPITAL.value, 0, 0, 0)
+    windll.user32.keybd_event(VirtualKey.VK_CAPITAL.value, 0, 2, 0)
+
+def send_virtual_keys(entries):
+    inputs = (INPUT * 1)()
+
+    for i, entry in enumerate(entries):
+        if entry.virtual_key_code not in basic_keys:
+            send_key_name(virtual_key_dict[entry.virtual_key_code][3:])
+            print(virtual_key_dict[entry.virtual_key_code][3:])
+            continue
+        inputs[0].type = INPUT_KEYBOARD
+        inputs[0].input.ki.wVk = entry.virtual_key_code
+        inputs[0].input.ki.wScan = 0
+        inputs[0].input.ki.dwFlags = (0 if entry.pressed else 0x0002)
+        inputs[0].input.ki.time = 0
+        inputs[0].input.ki.dwExtraInfo = pointer(c_ulong(0))
+
+        mouse_move(*get_mouse_position())
+        windll.user32.SendInput(len(entries), inputs, sizeof(INPUT))
+        mouse_move(*get_mouse_position())
+        sleep(0.1)
+
+def check_keyboard_layout(keylog):
+    windll.user32.GetKeyboardLayout.restype = DWORD
+    layout = windll.user32.GetKeyboardLayout(0)
+    if layout != keylog.keyboard_layout_code:
+        raise ValueError("Your keyboard language is not the same than victim computer: " + hex(layout) + " != " + hex(keylog.keyboard_layout_code))
+    return layout
+
+def get_mouse_position():
+    pt = POINT()
+    if windll.user32.GetCursorPos(byref(pt)):
+        return (pt.x, pt.y)
+    else:
+        raise WinError(get_last_error())
+
+def mouse_move(x, y):
+    if not windll.user32.SetCursorPos(x + 1, y + 1):
+        raise WinError(get_last_error())
+    if not windll.user32.SetCursorPos(x - 1, y - 1):
+        raise WinError(get_last_error())
+    if not windll.user32.SetCursorPos(x, y):
+        raise WinError(get_last_error())
+
+def main() -> int:
     file_path = 'KeyboardCature.keyc'
     keylog = read_keylog(file_path)
-    print(keylog)
+
+    try:
+        check_keyboard_layout(keylog)
+    except ValueError as e:
+        print(str(e), file=stderr)
+
+    if 'read' in argv:
+        print(keylog)
+    elif 'replay' in argv:
+        print("Replay will start prepare a GUI like notepad to receive it !", file=stderr)
+        for i in range(15):
+            print("Replay will start in:", 15 - i, " seconds...", file=stderr)
+            sleep(1)
+        entries = []
+        last_seconds = 0
+        for entry in keylog.entries:
+            if entry.seconds != last_seconds:
+                print("Send", len(entries), "keys...", file=stderr)
+                send_virtual_keys(entries)
+                last_seconds = entry.seconds
+                entries = [entry]
+            else:
+                entries.append(entry)
+        print("Send last", len(entries), "keys...", file=stderr)
+        send_virtual_keys(entries)
+    else:
+        print(executable, argv[0], "(read|replay)", file=stderr)
+        return 1
+
+if __name__ == "__main__":
+    exit(main())
